@@ -264,10 +264,7 @@ jobs:
         run: |
           echo "🔍 Validating bootstrap across all accounts..."
 
-          # Reset to pipeline account credentials
-          unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
-
-          # Validate pipeline account
+          # Validate pipeline account (using GitHub Actions OIDC credentials)
           echo "Checking Pipeline Account..."
           aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} --query 'Stacks[0].StackStatus' --output text
 
@@ -290,6 +287,7 @@ jobs:
             STATUS=$(aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_FOUND")
             echo "  Status: $STATUS"
             
+            # Clear temporary credentials (GitHub Actions OIDC will be restored automatically)
             unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
           done
 
