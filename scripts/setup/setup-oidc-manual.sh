@@ -215,8 +215,7 @@ cat > /tmp/github-actions-policy-legacy.json << EOF
         "arn:aws:iam::$DEV_ACCOUNT:role/CDKBootstrapExecutionRole",
         "arn:aws:iam::$TEST_ACCOUNT:role/CDKBootstrapExecutionRole",
         "arn:aws:iam::$PROD_ACCOUNT:role/CDKBootstrapExecutionRole"
-      ],
-
+      ]
     },
     {
       "Sid": "LocalPipelineDeployment",
