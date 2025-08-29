@@ -160,7 +160,7 @@ jobs:
           # Try assume role with more verbose output
           echo "Attempting to assume role..."
           aws sts assume-role \
-            --role-arn "arn:aws:iam::${{ env.TEST_ACCOUNT }}:role/OrganizationAccountAccessRole" \
+            --role-arn "arn:aws:iam::${{ env.TEST_ACCOUNT }}:role/CDKBootstrapExecutionRole" \
             --role-session-name "CDKBootstrap-Test-Debug" \
             --query 'Credentials.AccessKeyId' \
             --output text || echo "❌ Failed to assume role"
@@ -176,14 +176,14 @@ jobs:
           aws sts get-caller-identity
 
           TEMP_CREDS=$(aws sts assume-role \
-            --role-arn "arn:aws:iam::${{ env.TEST_ACCOUNT }}:role/OrganizationAccountAccessRole" \
+            --role-arn "arn:aws:iam::${{ env.TEST_ACCOUNT }}:role/CDKBootstrapExecutionRole" \
             --role-session-name "CDKBootstrap-Test" \
             --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
             --output text 2>&1) || {
             echo "❌ Failed to assume role in Test account."
             echo "Error details: $TEMP_CREDS"
             echo "Please check:"
-            echo "1. OrganizationAccountAccessRole exists in account ${{ env.TEST_ACCOUNT }}"
+            echo "1. CDKBootstrapExecutionRole exists in account ${{ env.TEST_ACCOUNT }}"
             echo "2. Trust policy allows arn:aws:iam::${{ env.PIPELINE_ACCOUNT }}:role/GitHubActions-CDKBootstrap-Role"
             echo "3. No SCPs are blocking sts:AssumeRole"
             exit 1
