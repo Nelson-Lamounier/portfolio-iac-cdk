@@ -69,6 +69,7 @@ package-lock.json
 # AWS specific
 .aws/
 aws-exports.js
+policies/
 
 # Terraform (if mixed infrastructure)
 *.tfstate

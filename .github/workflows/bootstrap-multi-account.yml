@@ -106,13 +106,13 @@ jobs:
         run: |
           echo "🚀 Bootstrapping Dev Account: ${{ env.DEV_ACCOUNT }}"
 
-          # Try to assume OrganizationAccountAccessRole
+          # Try to assume CDKBootstrapExecutionRole
           TEMP_CREDS=$(aws sts assume-role \
-            --role-arn "arn:aws:iam::${{ env.DEV_ACCOUNT }}:role/OrganizationAccountAccessRole" \
+            --role-arn "arn:aws:iam::${{ env.DEV_ACCOUNT }}:role/CDKBootstrapExecutionRole" \
             --role-session-name "CDKBootstrap-Dev" \
             --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
             --output text) || {
-            echo "❌ Failed to assume role in Dev account. Please ensure OrganizationAccountAccessRole exists."
+            echo "❌ Failed to assume role in Dev account. Please ensure CDKBootstrapExecutionRole exists."
             exit 1
           }
 
@@ -222,13 +222,13 @@ jobs:
         run: |
           echo "🚀 Bootstrapping Prod Account: ${{ env.PROD_ACCOUNT }}"
 
-          # Try to assume OrganizationAccountAccessRole
+          # Try to assume CDKBootstrapExecutionRole
           TEMP_CREDS=$(aws sts assume-role \
-            --role-arn "arn:aws:iam::${{ env.PROD_ACCOUNT }}:role/OrganizationAccountAccessRole" \
+            --role-arn "arn:aws:iam::${{ env.PROD_ACCOUNT }}:role/CDKBootstrapExecutionRole" \
             --role-session-name "CDKBootstrap-Prod" \
             --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
             --output text) || {
-            echo "❌ Failed to assume role in Prod account. Please ensure OrganizationAccountAccessRole exists."
+            echo "❌ Failed to assume role in Prod account. Please ensure CDKBootstrapExecutionRole exists."
             exit 1
           }
 
@@ -275,7 +275,7 @@ jobs:
           for ACCOUNT in ${{ env.DEV_ACCOUNT }} ${{ env.TEST_ACCOUNT }} ${{ env.PROD_ACCOUNT }}; do
             echo "Checking Account: $ACCOUNT"
             TEMP_CREDS=$(aws sts assume-role \
-              --role-arn "arn:aws:iam::$ACCOUNT:role/OrganizationAccountAccessRole" \
+              --role-arn "arn:aws:iam::$ACCOUNT:role/CDKBootstrapExecutionRole" \
               --role-session-name "CDKValidate" \
               --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
               --output text 2>/dev/null) || {
