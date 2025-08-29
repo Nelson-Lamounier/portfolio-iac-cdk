@@ -17,9 +17,9 @@ permissions:
   pull-requests: write # Optional: for PR comments
 
 env:
-  AWS_REGION: us-east-1
-  # You can hardcode the pipeline account if you prefer
-  PIPELINE_ACCOUNT: "123456789012" # Or use ${{ secrets.PIPELINE_ACCOUNT_ID }}
+  AWS_REGION: eu-west-1
+  # Use your pipeline account ID
+  PIPELINE_ACCOUNT: "559780231478"
 
 jobs:
   deploy:
@@ -32,7 +32,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           # Use your existing OIDC role
-          role-to-assume: arn:aws:iam::${{ env.PIPELINE_ACCOUNT }}:role/GitHubActionsRole
+          role-to-assume: arn:aws:iam::${{ env.PIPELINE_ACCOUNT }}:role/GitHubActions-CDKBootstrap-Role
           role-session-name: GitHubActions-Deploy
           aws-region: ${{ env.AWS_REGION }}
 

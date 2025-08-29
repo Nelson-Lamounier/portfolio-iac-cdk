@@ -133,14 +133,29 @@ fi
 # Step 2: Create Trust Policy
 print_status "Creating trust policy..."
 
-# Generate policies from templates if they don't exist
-if [ ! -f "policies/trust/github-trust-policy.json" ]; then
-    echo "Generating policies from templates..."
-    ./scripts/generate-policies.sh
-fi
-
-# Use the generated trust policy and update the OIDC provider ARN
-sed "s|{{OIDC_PROVIDER_ARN}}|$OIDC_PROVIDER_ARN|g" policies/trust/github-trust-policy.json > /tmp/trust-policy.json
+# Create trust policy directly
+cat > /tmp/trust-policy.json << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "$OIDC_PROVIDER_ARN"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:$GITHUB_OWNER/$GITHUB_REPO:*"
+        }
+      }
+    }
+  ]
+}
+EOF
 
 # Step 3: Create IAM Role
 print_status "Creating GitHub Actions IAM Role..."
