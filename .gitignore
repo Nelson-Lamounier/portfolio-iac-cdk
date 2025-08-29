@@ -1,8 +1,92 @@
+# CDK and Node.js
+node_modules/
 *.js
-!jest.config.js
 *.d.ts
-node_modules
+*.js.map
+cdk.out/
+cdk.context.json
+.cdk.staging/
+.parcel-cache/
 
-# CDK asset staging directory
-.cdk.staging
-cdk.out
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+aws-credentials.json
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Coverage and test reports
+coverage/
+.nyc_output/
+test-results/
+junit.xml
+
+# Build outputs
+dist/
+build/
+lib/
+out/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Package manager
+.npm
+.yarn/
+yarn-error.log
+package-lock.json
+
+# CDK specific
+*.d.ts.map
+*.js.map
+
+# AWS specific
+.aws/
+aws-exports.js
+
+# Terraform (if mixed infrastructure)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Docker
+.dockerignore
+Dockerfile.local
+
+# Local development
+.local/
+local/
+.kiro/
+
+# Act (GitHub Actions local testing)
+.actrc
+.github/act-*
+test-workflow-locally.sh
+.github/workflows/test-*.yml

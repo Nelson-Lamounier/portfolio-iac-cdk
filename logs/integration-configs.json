@@ -1,0 +1,36 @@
+Integration Configurations:
+{
+  "jest": {
+    "setupFilesAfterEnv": [
+      "<rootDir>/test/setup.ts"
+    ],
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/**/*.d.ts"
+    ],
+    "coverageDirectory": "logs/testing/coverage",
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
+    ]
+  },
+  "cdk": {
+    "app": "npx ts-node --prefer-ts-exts src/index.ts",
+    "output": "cdk.out",
+    "context": {
+      "@aws-cdk/core:enableStackNameDuplicates": true,
+      "aws-cdk:enableDiffNoFail": true
+    }
+  },
+  "typescript": {
+    "compilerOptions": {
+      "outDir": "dist",
+      "rootDir": "src",
+      "declaration": true,
+      "declarationMap": true,
+      "sourceMap": true
+    }
+  }
+}

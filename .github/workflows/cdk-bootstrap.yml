@@ -1,0 +1,75 @@
+# @format
+
+# .github/workflows/deploy-pipeline.yml
+name: Deploy CDK Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# ONLY these permissions are required
+permissions:
+  id-token: write # Required for OIDC
+  contents: read # Required to checkout code
+  pull-requests: write # Optional: for PR comments
+
+env:
+  AWS_REGION: us-east-1
+  # You can hardcode the pipeline account if you prefer
+  PIPELINE_ACCOUNT: "123456789012" # Or use ${{ secrets.PIPELINE_ACCOUNT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Use your existing OIDC role
+          role-to-assume: arn:aws:iam::${{ env.PIPELINE_ACCOUNT }}:role/GitHubActionsRole
+          role-session-name: GitHubActions-Deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: |
+          yarn install --frozen-lockfile
+          npm install -g aws-cdk
+
+      # Read all configuration from SSM instead of GitHub secrets
+      - name: Load configuration from SSM
+        id: config
+        run: |
+          # Read values from SSM Parameter Store
+          echo "DEV_ACCOUNT=$(aws ssm get-parameter --name '/cdk/accounts/dev' --query 'Parameter.Value' --output text)" >> $GITHUB_ENV
+          echo "TEST_ACCOUNT=$(aws ssm get-parameter --name '/cdk/accounts/test' --query 'Parameter.Value' --output text)" >> $GITHUB_ENV
+          echo "PROD_ACCOUNT=$(aws ssm get-parameter --name '/cdk/accounts/prod' --query 'Parameter.Value' --output text)" >> $GITHUB_ENV
+          echo "CDK_QUALIFIER=$(aws ssm get-parameter --name '/cdk/qualifier' --query 'Parameter.Value' --output text)" >> $GITHUB_ENV
+
+          # Optional: Export for use in CDK app
+          export CDK_QUALIFIER=$(aws ssm get-parameter --name '/cdk/qualifier' --query 'Parameter.Value' --output text)
+
+      - name: Run Bootstrap Script
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          # Your bootstrap script can now read from SSM directly
+          chmod +x ./scripts/bootstrap-accounts.sh
+          ./scripts/bootstrap-accounts.sh
+
+      - name: Deploy CDK Pipeline
+        if: github.ref == 'refs/heads/main'
+        run: |
+          npx cdk deploy CDKPipelineStack \
+            --require-approval never \
+            --context useSSMConfig=true

@@ -1,0 +1,31 @@
+# Ignore all log files to prevent sensitive data from being committed
+*.log
+*.log.*
+*.out
+*.err
+
+# Allow README files for documentation
+!README.md
+!*/README.md
+
+# Ignore all files in log subdirectories except README files
+build/*
+!build/README.md
+deployment/*
+!deployment/README.md
+testing/*
+!testing/README.md
+development/*
+!development/README.md
+
+# Ignore temporary and backup files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Ignore compressed log files
+*.gz
+*.zip
+*.tar
+*.tar.gz

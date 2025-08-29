@@ -1,0 +1,123 @@
+{
+  "projectName": "cdk-project",
+  "version": "1.0.0",
+  "environments": {
+    "development": {
+      "name": "development",
+      "logLevel": "debug",
+      "enableConsoleOutput": true,
+      "enableFileOutput": true,
+      "securityStandards": {
+        "requireSanitization": true,
+        "maskAccountIds": true,
+        "filterCredentials": true,
+        "preventCommit": true,
+        "enableRotation": true,
+        "maxRetentionDays": 7
+      }
+    },
+    "testing": {
+      "name": "testing",
+      "logLevel": "info",
+      "enableConsoleOutput": false,
+      "enableFileOutput": true,
+      "securityStandards": {
+        "requireSanitization": true,
+        "maskAccountIds": true,
+        "filterCredentials": true,
+        "preventCommit": true,
+        "enableRotation": true,
+        "maxRetentionDays": 7
+      }
+    },
+    "production": {
+      "name": "production",
+      "logLevel": "warn",
+      "enableConsoleOutput": false,
+      "enableFileOutput": true,
+      "securityStandards": {
+        "requireSanitization": true,
+        "maskAccountIds": true,
+        "filterCredentials": true,
+        "preventCommit": true,
+        "enableRotation": true,
+        "maxRetentionDays": 30
+      }
+    }
+  },
+  "logManager": {
+    "baseLogDir": "logs",
+    "categories": [
+      {
+        "name": "build",
+        "directory": "build",
+        "rotation": {
+          "maxSizeBytes": 10485760,
+          "maxAgeDays": 7,
+          "maxFiles": 5,
+          "compressOld": true
+        },
+        "sanitization": {
+          "enableDebugLogging": false
+        }
+      },
+      {
+        "name": "deployment",
+        "directory": "deployment",
+        "rotation": {
+          "maxSizeBytes": 52428800,
+          "maxAgeDays": 30,
+          "maxFiles": 10,
+          "compressOld": true
+        },
+        "sanitization": {
+          "enableDebugLogging": false
+        }
+      },
+      {
+        "name": "testing",
+        "directory": "testing",
+        "rotation": {
+          "maxSizeBytes": 20971520,
+          "maxAgeDays": 14,
+          "maxFiles": 7,
+          "compressOld": true
+        },
+        "sanitization": {
+          "enableDebugLogging": false
+        }
+      },
+      {
+        "name": "development",
+        "directory": "development",
+        "rotation": {
+          "maxSizeBytes": 5242880,
+          "maxAgeDays": 7,
+          "maxFiles": 3,
+          "compressOld": false
+        },
+        "sanitization": {
+          "enableDebugLogging": true
+        }
+      }
+    ],
+    "globalSanitization": {
+      "enableDebugLogging": false
+    },
+    "enableAutoCleanup": true
+  },
+  "security": {
+    "requireSanitization": true,
+    "maskAccountIds": true,
+    "filterCredentials": true,
+    "preventCommit": true,
+    "enableRotation": true,
+    "maxRetentionDays": 30
+  },
+  "integrations": {
+    "cdk": true,
+    "jest": true,
+    "typescript": true,
+    "git": true
+  }
+}
