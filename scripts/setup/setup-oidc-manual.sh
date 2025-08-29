@@ -216,11 +216,7 @@ cat > /tmp/github-actions-policy-legacy.json << EOF
         "arn:aws:iam::$TEST_ACCOUNT:role/CDKBootstrapExecutionRole",
         "arn:aws:iam::$PROD_ACCOUNT:role/CDKBootstrapExecutionRole"
       ],
-      "Condition": {
-        "StringEquals": {
-          "sts:ExternalId": "github-$GITHUB_OWNER-$GITHUB_REPO"
-        }
-      }
+
     },
     {
       "Sid": "LocalPipelineDeployment",
@@ -283,7 +279,10 @@ cat > /tmp/github-actions-policy-legacy.json << EOF
         "codebuild:UpdateProject",
         "codebuild:DeleteProject",
         "codebuild:BatchGetProjects",
-        "secretsmanager:GetSecretValue"
+        "secretsmanager:GetSecretValue",
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:DescribeParameters"
       ],
       "Resource": [
         "arn:aws:iam::$PIPELINE_ACCOUNT:role/cdk-*",
@@ -294,8 +293,22 @@ cat > /tmp/github-actions-policy-legacy.json << EOF
         "arn:aws:apigateway:*::/restapis/*",
         "arn:aws:codepipeline:*:$PIPELINE_ACCOUNT:pipeline/*",
         "arn:aws:codebuild:*:$PIPELINE_ACCOUNT:project/*",
-        "arn:aws:secretsmanager:*:$PIPELINE_ACCOUNT:secret:github-token-*"
+        "arn:aws:secretsmanager:*:$PIPELINE_ACCOUNT:secret:github-token-*",
+        "arn:aws:ssm:*:$PIPELINE_ACCOUNT:parameter/github-actions/*",
+        "arn:aws:ssm:*:$PIPELINE_ACCOUNT:parameter/cdk/*"
       ]
+    },
+    {
+      "Sid": "CDKBootstrapOperations",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:*",
+        "iam:*",
+        "s3:*",
+        "kms:*",
+        "ssm:*"
+      ],
+      "Resource": "*"
     }
   ]
 }

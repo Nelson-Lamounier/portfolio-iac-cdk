@@ -1,0 +1,282 @@
+name: CDK Multi-Account Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_bootstrap:
+        description: 'Force re-bootstrap all accounts'
+        required: false
+        default: 'false'
+        type: boolean
+      accounts_to_bootstrap:
+        description: 'Accounts to bootstrap (comma-separated: pipeline,dev,test,prod or "all")'
+        required: false
+        default: 'all'
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  PIPELINE_ACCOUNT: "559780231478"
+  CDK_QUALIFIER: "myorg"
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.PIPELINE_ACCOUNT }}:role/GitHubActions-CDKBootstrap-Role
+          role-session-name: GitHubActions-Bootstrap
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install -g aws-cdk@latest
+
+      - name: Load account configuration from SSM
+        id: config
+        run: |
+          echo "Loading account IDs from SSM Parameter Store..."
+          
+          # Load account IDs
+          DEV_ACCOUNT=$(aws ssm get-parameter --name '/github-actions/accounts/dev' --query 'Parameter.Value' --output text)
+          TEST_ACCOUNT=$(aws ssm get-parameter --name '/github-actions/accounts/test' --query 'Parameter.Value' --output text)
+          PROD_ACCOUNT=$(aws ssm get-parameter --name '/github-actions/accounts/prod' --query 'Parameter.Value' --output text)
+          
+          echo "DEV_ACCOUNT=$DEV_ACCOUNT" >> $GITHUB_ENV
+          echo "TEST_ACCOUNT=$TEST_ACCOUNT" >> $GITHUB_ENV
+          echo "PROD_ACCOUNT=$PROD_ACCOUNT" >> $GITHUB_ENV
+          
+          echo "✅ Configuration loaded:"
+          echo "  Pipeline Account: ${{ env.PIPELINE_ACCOUNT }}"
+          echo "  Dev Account: $DEV_ACCOUNT"
+          echo "  Test Account: $TEST_ACCOUNT"
+          echo "  Prod Account: $PROD_ACCOUNT"
+          echo "  Region: ${{ env.AWS_REGION }}"
+          echo "  Qualifier: ${{ env.CDK_QUALIFIER }}"
+
+      - name: Verify AWS access
+        run: |
+          echo "Verifying AWS access..."
+          aws sts get-caller-identity
+          echo "✅ AWS access verified"
+
+      - name: Bootstrap Pipeline Account
+        if: contains(github.event.inputs.accounts_to_bootstrap, 'pipeline') || github.event.inputs.accounts_to_bootstrap == 'all'
+        run: |
+          echo "🚀 Bootstrapping Pipeline Account: ${{ env.PIPELINE_ACCOUNT }}"
+          
+          # Check if already bootstrapped
+          if aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+            if [ "${{ github.event.inputs.force_bootstrap }}" = "true" ]; then
+              echo "⚠️ Force bootstrap enabled, re-bootstrapping..."
+            else
+              echo "✅ Pipeline account already bootstrapped, skipping..."
+              exit 0
+            fi
+          fi
+          
+          cdk bootstrap aws://${{ env.PIPELINE_ACCOUNT }}/${{ env.AWS_REGION }} \
+            --qualifier ${{ env.CDK_QUALIFIER }} \
+            --toolkit-stack-name CDKToolkit \
+            --cloudformation-execution-policies arn:aws:iam::aws:policy/AdministratorAccess \
+            --tags Environment=Pipeline \
+            --tags ManagedBy=CDK \
+            --tags Qualifier=${{ env.CDK_QUALIFIER }}
+          
+          echo "✅ Pipeline account bootstrap completed"
+
+      - name: Bootstrap Dev Account
+        if: contains(github.event.inputs.accounts_to_bootstrap, 'dev') || github.event.inputs.accounts_to_bootstrap == 'all'
+        run: |
+          echo "🚀 Bootstrapping Dev Account: ${{ env.DEV_ACCOUNT }}"
+          
+          # Try to assume OrganizationAccountAccessRole
+          TEMP_CREDS=$(aws sts assume-role \
+            --role-arn "arn:aws:iam::${{ env.DEV_ACCOUNT }}:role/OrganizationAccountAccessRole" \
+            --role-session-name "CDKBootstrap-Dev" \
+            --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+            --output text) || {
+            echo "❌ Failed to assume role in Dev account. Please ensure OrganizationAccountAccessRole exists."
+            exit 1
+          }
+          
+          # Set temporary credentials
+          export AWS_ACCESS_KEY_ID=$(echo $TEMP_CREDS | awk '{print $1}')
+          export AWS_SECRET_ACCESS_KEY=$(echo $TEMP_CREDS | awk '{print $2}')
+          export AWS_SESSION_TOKEN=$(echo $TEMP_CREDS | awk '{print $3}')
+          
+          # Check if already bootstrapped
+          if aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+            if [ "${{ github.event.inputs.force_bootstrap }}" = "true" ]; then
+              echo "⚠️ Force bootstrap enabled, re-bootstrapping..."
+            else
+              echo "✅ Dev account already bootstrapped, skipping..."
+              exit 0
+            fi
+          fi
+          
+          cdk bootstrap aws://${{ env.DEV_ACCOUNT }}/${{ env.AWS_REGION }} \
+            --qualifier ${{ env.CDK_QUALIFIER }} \
+            --toolkit-stack-name CDKToolkit \
+            --cloudformation-execution-policies arn:aws:iam::aws:policy/AdministratorAccess \
+            --trust ${{ env.PIPELINE_ACCOUNT }} \
+            --trust-for-lookup ${{ env.PIPELINE_ACCOUNT }} \
+            --tags Environment=Development \
+            --tags ManagedBy=CDK \
+            --tags Qualifier=${{ env.CDK_QUALIFIER }} \
+            --tags PipelineAccount=${{ env.PIPELINE_ACCOUNT }}
+          
+          echo "✅ Dev account bootstrap completed"
+
+      - name: Bootstrap Test Account
+        if: contains(github.event.inputs.accounts_to_bootstrap, 'test') || github.event.inputs.accounts_to_bootstrap == 'all'
+        run: |
+          echo "🚀 Bootstrapping Test Account: ${{ env.TEST_ACCOUNT }}"
+          
+          # Try to assume OrganizationAccountAccessRole
+          TEMP_CREDS=$(aws sts assume-role \
+            --role-arn "arn:aws:iam::${{ env.TEST_ACCOUNT }}:role/OrganizationAccountAccessRole" \
+            --role-session-name "CDKBootstrap-Test" \
+            --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+            --output text) || {
+            echo "❌ Failed to assume role in Test account. Please ensure OrganizationAccountAccessRole exists."
+            exit 1
+          }
+          
+          # Set temporary credentials
+          export AWS_ACCESS_KEY_ID=$(echo $TEMP_CREDS | awk '{print $1}')
+          export AWS_SECRET_ACCESS_KEY=$(echo $TEMP_CREDS | awk '{print $2}')
+          export AWS_SESSION_TOKEN=$(echo $TEMP_CREDS | awk '{print $3}')
+          
+          # Check if already bootstrapped
+          if aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+            if [ "${{ github.event.inputs.force_bootstrap }}" = "true" ]; then
+              echo "⚠️ Force bootstrap enabled, re-bootstrapping..."
+            else
+              echo "✅ Test account already bootstrapped, skipping..."
+              exit 0
+            fi
+          fi
+          
+          cdk bootstrap aws://${{ env.TEST_ACCOUNT }}/${{ env.AWS_REGION }} \
+            --qualifier ${{ env.CDK_QUALIFIER }} \
+            --toolkit-stack-name CDKToolkit \
+            --cloudformation-execution-policies arn:aws:iam::aws:policy/AdministratorAccess \
+            --trust ${{ env.PIPELINE_ACCOUNT }} \
+            --trust-for-lookup ${{ env.PIPELINE_ACCOUNT }} \
+            --tags Environment=Testing \
+            --tags ManagedBy=CDK \
+            --tags Qualifier=${{ env.CDK_QUALIFIER }} \
+            --tags PipelineAccount=${{ env.PIPELINE_ACCOUNT }}
+          
+          echo "✅ Test account bootstrap completed"
+
+      - name: Bootstrap Prod Account
+        if: contains(github.event.inputs.accounts_to_bootstrap, 'prod') || github.event.inputs.accounts_to_bootstrap == 'all'
+        run: |
+          echo "🚀 Bootstrapping Prod Account: ${{ env.PROD_ACCOUNT }}"
+          
+          # Try to assume OrganizationAccountAccessRole
+          TEMP_CREDS=$(aws sts assume-role \
+            --role-arn "arn:aws:iam::${{ env.PROD_ACCOUNT }}:role/OrganizationAccountAccessRole" \
+            --role-session-name "CDKBootstrap-Prod" \
+            --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+            --output text) || {
+            echo "❌ Failed to assume role in Prod account. Please ensure OrganizationAccountAccessRole exists."
+            exit 1
+          }
+          
+          # Set temporary credentials
+          export AWS_ACCESS_KEY_ID=$(echo $TEMP_CREDS | awk '{print $1}')
+          export AWS_SECRET_ACCESS_KEY=$(echo $TEMP_CREDS | awk '{print $2}')
+          export AWS_SESSION_TOKEN=$(echo $TEMP_CREDS | awk '{print $3}')
+          
+          # Check if already bootstrapped
+          if aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} >/dev/null 2>&1; then
+            if [ "${{ github.event.inputs.force_bootstrap }}" = "true" ]; then
+              echo "⚠️ Force bootstrap enabled, re-bootstrapping..."
+            else
+              echo "✅ Prod account already bootstrapped, skipping..."
+              exit 0
+            fi
+          fi
+          
+          cdk bootstrap aws://${{ env.PROD_ACCOUNT }}/${{ env.AWS_REGION }} \
+            --qualifier ${{ env.CDK_QUALIFIER }} \
+            --toolkit-stack-name CDKToolkit \
+            --cloudformation-execution-policies arn:aws:iam::aws:policy/AdministratorAccess \
+            --trust ${{ env.PIPELINE_ACCOUNT }} \
+            --trust-for-lookup ${{ env.PIPELINE_ACCOUNT }} \
+            --tags Environment=Production \
+            --tags ManagedBy=CDK \
+            --tags Qualifier=${{ env.CDK_QUALIFIER }} \
+            --tags PipelineAccount=${{ env.PIPELINE_ACCOUNT }}
+          
+          echo "✅ Prod account bootstrap completed"
+
+      - name: Validate Bootstrap
+        run: |
+          echo "🔍 Validating bootstrap across all accounts..."
+          
+          # Reset to pipeline account credentials
+          unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+          
+          # Validate pipeline account
+          echo "Checking Pipeline Account..."
+          aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} --query 'Stacks[0].StackStatus' --output text
+          
+          # Validate other accounts by assuming roles
+          for ACCOUNT in ${{ env.DEV_ACCOUNT }} ${{ env.TEST_ACCOUNT }} ${{ env.PROD_ACCOUNT }}; do
+            echo "Checking Account: $ACCOUNT"
+            TEMP_CREDS=$(aws sts assume-role \
+              --role-arn "arn:aws:iam::$ACCOUNT:role/OrganizationAccountAccessRole" \
+              --role-session-name "CDKValidate" \
+              --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+              --output text 2>/dev/null) || {
+              echo "⚠️ Cannot validate $ACCOUNT - role assumption failed"
+              continue
+            }
+            
+            export AWS_ACCESS_KEY_ID=$(echo $TEMP_CREDS | awk '{print $1}')
+            export AWS_SECRET_ACCESS_KEY=$(echo $TEMP_CREDS | awk '{print $2}')
+            export AWS_SESSION_TOKEN=$(echo $TEMP_CREDS | awk '{print $3}')
+            
+            STATUS=$(aws cloudformation describe-stacks --stack-name CDKToolkit --region ${{ env.AWS_REGION }} --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_FOUND")
+            echo "  Status: $STATUS"
+            
+            unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+          done
+          
+          echo "✅ Bootstrap validation completed"
+
+      - name: Summary
+        run: |
+          echo "🎉 Multi-Account CDK Bootstrap Summary"
+          echo "======================================"
+          echo "Pipeline Account: ${{ env.PIPELINE_ACCOUNT }}"
+          echo "Dev Account: ${{ env.DEV_ACCOUNT }}"
+          echo "Test Account: ${{ env.TEST_ACCOUNT }}"
+          echo "Prod Account: ${{ env.PROD_ACCOUNT }}"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Qualifier: ${{ env.CDK_QUALIFIER }}"
+          echo ""
+          echo "Next steps:"
+          echo "1. Deploy your CDK pipeline stack"
+          echo "2. Test cross-account deployments"
+          echo "3. Set up monitoring and alerts"
