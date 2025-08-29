@@ -8,7 +8,7 @@ on:
       force_bootstrap:
         description: "Force re-bootstrap all accounts"
         required: false
-        default: "false"
+        default: false
         type: boolean
       accounts_to_bootstrap:
         description: 'Accounts to bootstrap (comma-separated: pipeline,dev,test,prod or "all")'
@@ -144,18 +144,48 @@ jobs:
 
           echo "✅ Dev account bootstrap completed"
 
+      - name: Debug Test Account Access
+        if: contains(github.event.inputs.accounts_to_bootstrap, 'test') || github.event.inputs.accounts_to_bootstrap == 'all'
+        run: |
+          echo "� Doebugging Test Account Access: ${{ env.TEST_ACCOUNT }}"
+
+          # Check current identity
+          echo "Current identity:"
+          aws sts get-caller-identity
+
+          # Try to get role info (this will fail if role doesn't exist)
+          echo "Checking if OrganizationAccountAccessRole exists in test account..."
+          aws iam get-role --role-name OrganizationAccountAccessRole --query 'Role.RoleName' --output text 2>/dev/null || echo "❌ Role does not exist in pipeline account"
+
+          # Try assume role with more verbose output
+          echo "Attempting to assume role..."
+          aws sts assume-role \
+            --role-arn "arn:aws:iam::${{ env.TEST_ACCOUNT }}:role/OrganizationAccountAccessRole" \
+            --role-session-name "CDKBootstrap-Test-Debug" \
+            --query 'Credentials.AccessKeyId' \
+            --output text || echo "❌ Failed to assume role"
+
       - name: Bootstrap Test Account
         if: contains(github.event.inputs.accounts_to_bootstrap, 'test') || github.event.inputs.accounts_to_bootstrap == 'all'
         run: |
           echo "🚀 Bootstrapping Test Account: ${{ env.TEST_ACCOUNT }}"
 
-          # Try to assume OrganizationAccountAccessRole
+          # Try to assume OrganizationAccountAccessRole with detailed error logging
+          echo "Attempting to assume role: arn:aws:iam::${{ env.TEST_ACCOUNT }}:role/OrganizationAccountAccessRole"
+          echo "Current identity:"
+          aws sts get-caller-identity
+
           TEMP_CREDS=$(aws sts assume-role \
             --role-arn "arn:aws:iam::${{ env.TEST_ACCOUNT }}:role/OrganizationAccountAccessRole" \
             --role-session-name "CDKBootstrap-Test" \
             --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
-            --output text) || {
-            echo "❌ Failed to assume role in Test account. Please ensure OrganizationAccountAccessRole exists."
+            --output text 2>&1) || {
+            echo "❌ Failed to assume role in Test account."
+            echo "Error details: $TEMP_CREDS"
+            echo "Please check:"
+            echo "1. OrganizationAccountAccessRole exists in account ${{ env.TEST_ACCOUNT }}"
+            echo "2. Trust policy allows arn:aws:iam::${{ env.PIPELINE_ACCOUNT }}:role/GitHubActions-CDKBootstrap-Role"
+            echo "3. No SCPs are blocking sts:AssumeRole"
             exit 1
           }
 
