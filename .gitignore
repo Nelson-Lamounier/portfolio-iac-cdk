@@ -89,4 +89,3 @@ local/
 .actrc
 .github/act-*
 test-workflow-locally.sh
-.github/workflows/test-*.yml

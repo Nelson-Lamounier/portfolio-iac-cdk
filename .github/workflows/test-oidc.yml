@@ -1,0 +1,43 @@
+name: Test OIDC Authentication
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  PIPELINE_ACCOUNT: "559780231478"
+
+jobs:
+  test-oidc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.PIPELINE_ACCOUNT }}:role/GitHubActions-CDKBootstrap-Role
+          role-session-name: GitHubActions-Test
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Test AWS Access
+        run: |
+          echo "Testing AWS access..."
+          aws sts get-caller-identity
+          echo "✅ OIDC authentication successful!"
+          
+      - name: Test SSM Parameter Access
+        run: |
+          echo "Testing SSM parameter access..."
+          aws ssm get-parameter --name '/github-actions/accounts/pipeline' --query 'Parameter.Value' --output text
+          echo "✅ SSM parameter access successful!"
+
+      - name: List Available Parameters
+        run: |
+          echo "Available GitHub Actions parameters:"
+          aws ssm describe-parameters --parameter-filters "Key=Name,Option=BeginsWith,Values=/github-actions/" --query 'Parameters[].Name' --output table
