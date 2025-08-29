@@ -41,11 +41,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "18"
-          cache: "npm"
+          cache: "yarn"
 
       - name: Install dependencies
         run: |
-          npm ci
+          yarn install --frozen-lockfile
           npm install -g aws-cdk@latest
 
       - name: Load account configuration from SSM
@@ -53,7 +53,7 @@ jobs:
         run: |
           echo "Loading account IDs from SSM Parameter Store..."
           
-          # Load account IDs
+          # Load account IDs (securely without logging values)
           DEV_ACCOUNT=$(aws ssm get-parameter --name '/github-actions/accounts/dev' --query 'Parameter.Value' --output text)
           TEST_ACCOUNT=$(aws ssm get-parameter --name '/github-actions/accounts/test' --query 'Parameter.Value' --output text)
           PROD_ACCOUNT=$(aws ssm get-parameter --name '/github-actions/accounts/prod' --query 'Parameter.Value' --output text)
@@ -62,13 +62,10 @@ jobs:
           echo "TEST_ACCOUNT=$TEST_ACCOUNT" >> $GITHUB_ENV
           echo "PROD_ACCOUNT=$PROD_ACCOUNT" >> $GITHUB_ENV
           
-          echo "✅ Configuration loaded:"
-          echo "  Pipeline Account: ${{ env.PIPELINE_ACCOUNT }}"
-          echo "  Dev Account: $DEV_ACCOUNT"
-          echo "  Test Account: $TEST_ACCOUNT"
-          echo "  Prod Account: $PROD_ACCOUNT"
+          echo "✅ Configuration loaded successfully"
           echo "  Region: ${{ env.AWS_REGION }}"
           echo "  Qualifier: ${{ env.CDK_QUALIFIER }}"
+          echo "  Accounts: Pipeline + 3 target accounts loaded from SSM"
 
       - name: Verify AWS access
         run: |
